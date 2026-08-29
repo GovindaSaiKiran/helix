@@ -1,0 +1,406 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* Centralized Light Design Tokens */
+    --color-primary: #4f46e5;
+    --color-primary-hover: #4338ca;
+    --color-primary-light: #eef2ff;
+    --color-primary-text: #ffffff;
+
+    --color-secondary: #0ea5e9;
+    --color-secondary-hover: #0284c7;
+
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-surface-secondary: #f1f5f9;
+    --color-surface-hover: #f8fafc;
+
+    --color-text-main: #0f172a;
+    --color-text-muted: #64748b;
+    --color-text-subtle: #94a3b8;
+
+    --color-border: #e2e8f0;
+    --color-border-subtle: #f1f5f9;
+    --color-border-focus: #818cf8;
+
+    /* Semantic Status Tokens */
+    --color-success: #10b981;
+    --color-success-bg: #ecfdf5;
+    --color-success-border: #a7f3d0;
+    --color-success-text: #065f46;
+
+    --color-warning: #f59e0b;
+    --color-warning-bg: #fffbeb;
+    --color-warning-border: #fde68a;
+    --color-warning-text: #92400e;
+
+    --color-danger: #ef4444;
+    --color-danger-bg: #fef2f2;
+    --color-danger-border: #fecaca;
+    --color-danger-text: #991b1b;
+
+    --color-info: #3b82f6;
+    --color-info-bg: #eff6ff;
+    --color-info-border: #bfdbfe;
+    --color-info-text: #1e40af;
+
+    /* Sidebar Tokens */
+    --color-sidebar-bg: #0f172a;
+    --color-sidebar-surface: #1e293b;
+    --color-sidebar-border: #334155;
+    --color-sidebar-text: #94a3b8;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-active-bg: #4f46e5;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text-main);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* ==========================================================================
+   Dark Theme Overrides
+   ========================================================================== */
+html.dark {
+  --color-bg: #090d16;
+  --color-surface: #111827;
+  --color-surface-secondary: #1e293b;
+  --color-surface-hover: #1f2937;
+
+  --color-text-main: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-text-subtle: #64748b;
+
+  --color-border: #1e293b;
+  --color-border-subtle: #1e293b;
+  --color-border-focus: #6366f1;
+
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/80,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/30,
+html.dark .bg-slate-50\/70 {
+  background-color: #0f172a !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+
+html.dark .bg-white {
+  background-color: #111827 !important;
+}
+
+html.dark .bg-white\/80,
+html.dark .bg-white\/95 {
+  background-color: rgba(17, 24, 39, 0.92) !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-100,
+html.dark .border-slate-300 {
+  border-color: #1e293b !important;
+}
+
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-50\/80:hover {
+  background-color: #1e293b !important;
+}
+
+html.dark .hover\:border-slate-300:hover {
+  border-color: #334155 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark .bg-indigo-50,
+html.dark .bg-indigo-50\/50,
+html.dark .bg-indigo-50\/30,
+html.dark .bg-indigo-50\/70 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+
+html.dark .border-indigo-100,
+html.dark .border-indigo-200,
+html.dark .border-indigo-300 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+html.dark .text-indigo-900,
+html.dark .text-indigo-800 {
+  color: #c7d2fe !important;
+}
+
+html.dark .text-indigo-700,
+html.dark .text-indigo-600 {
+  color: #818cf8 !important;
+}
+
+/* ==========================================================================
+   Eye Comfort Theme (True Blue-Light Filter & Warm Eye Shield)
+   ========================================================================== */
+html.eye-comfort {
+  --color-bg: #f8f3e8;
+  --color-surface: #fffdf7;
+  --color-surface-secondary: #f3ebdb;
+  --color-surface-hover: #ede3d0;
+
+  --color-text-main: #261c14;
+  --color-text-muted: #5e4a38;
+  --color-text-subtle: #87715d;
+
+  --color-border: #e6dac6;
+  --color-border-subtle: #eee3d2;
+  --color-border-focus: #d97706;
+
+  /* True Optical Blue-Light Filtering: warm 2700K optical temperature */
+  filter: sepia(0.38) saturate(1.22) brightness(0.96) contrast(0.97) hue-rotate(-8deg);
+  color-scheme: light;
+  transition: filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fixed Global Amber Eye-Protection Filter Overlay */
+html.eye-comfort::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 30%, rgba(251, 191, 36, 0.12) 0%, rgba(245, 158, 11, 0.18) 100%);
+  pointer-events: none;
+  z-index: 999999;
+  mix-blend-mode: multiply;
+  opacity: 0.85;
+}
+
+html.eye-comfort body {
+  background-color: #f8f3e8 !important;
+  background-image: none !important;
+  color: #261c14 !important;
+}
+
+html.eye-comfort .bg-slate-50,
+html.eye-comfort .bg-slate-50\/80,
+html.eye-comfort .bg-slate-50\/70,
+html.eye-comfort .bg-slate-50\/50,
+html.eye-comfort .bg-slate-50\/30,
+html.eye-comfort .bg-slate-100,
+html.eye-comfort .bg-slate-100\/80,
+html.eye-comfort .bg-slate-100\/90 {
+  background-color: #f3ebdb !important;
+}
+
+html.eye-comfort .bg-white,
+html.eye-comfort .bg-white\/80,
+html.eye-comfort .bg-white\/85,
+html.eye-comfort .bg-white\/90,
+html.eye-comfort .bg-white\/95,
+html.eye-comfort .glass-card,
+html.eye-comfort .card-glass {
+  background-color: #fffdf7 !important;
+  border-color: #e6dac6 !important;
+}
+
+html.eye-comfort .border-slate-200,
+html.eye-comfort .border-slate-200\/80,
+html.eye-comfort .border-slate-200\/70,
+html.eye-comfort .border-slate-200\/60,
+html.eye-comfort .border-slate-100,
+html.eye-comfort .border-slate-300 {
+  border-color: #e6dac6 !important;
+}
+
+html.eye-comfort .text-slate-900,
+html.eye-comfort .text-slate-800 {
+  color: #261c14 !important;
+}
+
+html.eye-comfort .text-slate-700,
+html.eye-comfort .text-slate-600 {
+  color: #4a3a2c !important;
+}
+
+html.eye-comfort .text-slate-500 {
+  color: #5e4a38 !important;
+}
+
+html.eye-comfort .text-slate-400 {
+  color: #78634f !important;
+}
+
+html.eye-comfort input,
+html.eye-comfort select,
+html.eye-comfort textarea {
+  background-color: #fffdf7 !important;
+  color: #261c14 !important;
+  border-color: #d8c8af !important;
+}
+
+/* ==========================================================================
+   Ambient Glassmorphism & Dynamic Glowing Effects
+   ========================================================================== */
+
+/* Ambient Glowing Background Orbs */
+body {
+  background-color: var(--color-bg);
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(99, 102, 241, 0.06) 0px, transparent 50%),
+    radial-gradient(at 90% 15%, rgba(14, 165, 233, 0.05) 0px, transparent 50%),
+    radial-gradient(at 50% 95%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: var(--color-text-main);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+html.dark body {
+  background-color: #080c14;
+  background-image: 
+    radial-gradient(at 5% 5%, rgba(99, 102, 241, 0.15) 0px, transparent 55%),
+    radial-gradient(at 95% 10%, rgba(14, 165, 233, 0.12) 0px, transparent 55%),
+    radial-gradient(at 50% 90%, rgba(168, 85, 247, 0.12) 0px, transparent 55%);
+}
+
+/* Glassmorphic Cards & Panels */
+.glass-card,
+.card-glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark .glass-card,
+html.dark .card-glass {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 25px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* Interactive Cursor Hover Glowing Highlight */
+.card-interactive,
+.interactive-glow,
+.glass-card:hover {
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-interactive:hover,
+.interactive-glow:hover {
+  transform: translateY(-2.5px);
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 12px 28px -4px rgba(99, 102, 241, 0.18), 0 0 18px 2px rgba(129, 140, 248, 0.22) !important;
+}
+
+html.dark .card-interactive:hover,
+html.dark .interactive-glow:hover {
+  border-color: rgba(129, 140, 248, 0.6) !important;
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.6), 0 0 22px 3px rgba(99, 102, 241, 0.35) !important;
+}
+
+/* Button & Element Glowing Hover Effects */
+.btn-glow:hover,
+button[type="button"]:hover,
+button[type="submit"]:hover {
+  transition: all 0.2s ease;
+}
+
+/* Glowing Neon Badges & Highlights */
+.glow-badge-indigo {
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+}
+
+.glow-badge-emerald {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+}
+
+.glow-badge-amber {
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+/* Custom Clean Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+html.eye-comfort ::-webkit-scrollbar-thumb {
+  background: #d1c1ad;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Accessible outline utility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+}
