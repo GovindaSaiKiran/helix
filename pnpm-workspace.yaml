@@ -1,2 +1,6 @@
 allowBuilds:
+  '@firebase/util': true
   esbuild: true
+  protobufjs: true
+minimumReleaseAgeExclude:
+  - pdfjs-dist@6.3.289
