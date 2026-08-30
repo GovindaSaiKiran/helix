@@ -25,7 +25,8 @@ export class AiService {
   }
 
   public static hasApiKey(): boolean {
-    return !!(this.getGeminiKey() || this.getGroqKey());
+    // True because /api/ai/generate is available on the server
+    return true;
   }
 
   private static async callGroq(prompt: string, apiKey: string): Promise<string> {
@@ -38,7 +39,7 @@ export class AiService {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             model,
@@ -47,7 +48,7 @@ export class AiService {
               { role: 'user', content: prompt }
             ],
             temperature: 0.2,
-          })
+          }),
         });
 
         if (!response.ok) {
@@ -79,6 +80,29 @@ export class AiService {
     }
   }
 
+  private static async callServerApi(prompt: string): Promise<string> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const response = await fetch(`${baseUrl}/api/ai/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.error || `Server AI API Error (${response.status})`);
+    }
+
+    const data = await response.json();
+    if (!data.text) {
+      throw new Error('Server returned empty AI response');
+    }
+
+    return data.text;
+  }
+
   private static async generate(prompt: string): Promise<string> {
     // 1. Mandatory Centralized Authentication Check
     const auth = await AuthGuard.checkAuth();
@@ -89,11 +113,7 @@ export class AiService {
     const groqKey = this.getGroqKey();
     const geminiKey = this.getGeminiKey();
 
-    if (!groqKey && !geminiKey) {
-      throw new Error('No valid Gemini or Groq API Key found. Please add one in settings or .env.local.');
-    }
-
-    // Try Groq first if available
+    // 2. Try Client-Side Direct Keys (if user provided in Settings/localStorage or VITE_ env)
     if (groqKey) {
       try {
         return await this.callGroq(prompt, groqKey);
@@ -102,7 +122,6 @@ export class AiService {
         if (geminiKey) {
           return await this.callGemini(prompt, geminiKey);
         }
-        throw groqError;
       }
     }
 
@@ -110,12 +129,20 @@ export class AiService {
       try {
         return await this.callGemini(prompt, geminiKey);
       } catch (geminiError: any) {
-        console.warn('Gemini generation failed:', geminiError);
-        throw geminiError;
+        console.warn('Gemini generation failed, attempting server endpoint:', geminiError);
       }
     }
 
-    throw new Error('Could not complete generation with configured keys.');
+    // 3. Authoritative Default: Call Secure Server-Side Vercel API Endpoint
+    try {
+      return await this.callServerApi(prompt);
+    } catch (serverErr: any) {
+      console.error('[AiService] Server API failed:', serverErr);
+      throw new Error(
+        serverErr.message ||
+        'AI generation failed. Please ensure GEMINI_API_KEY or GROQ_API_KEY is configured in Vercel environment variables or enter your key in settings.'
+      );
+    }
   }
 
   private static cleanJson(text: string): string {
