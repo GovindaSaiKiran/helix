@@ -567,6 +567,16 @@ export class AgentExecutor {
             break;
           }
 
+          case 'GREETING': {
+            summaryReplies.push("Hello! 👋 I'm Helix, your intelligent study assistant. I can schedule focus sessions, set reminder alerts, find YouTube lecture tutorials, and organize coursework projects. How can I help you today?");
+            break;
+          }
+
+          case 'HELP': {
+            summaryReplies.push("Here are some things I can do for you:\n\n📅 **Schedule Tasks & Reminders**: *\"Schedule Video editing class from 8pm to 9pm today\"*\n🔔 **Manage Reminders**: *\"Reschedule video editing class to 9pm\"*\n🎥 **Find Video Lectures**: *\"Find a YouTube tutorial about React hooks\"*\n📁 **Create Projects**: *\"Create project called DBMS Final Project\"*\n📊 **Timetable & Agenda**: *\"What tasks do I have today?\"*");
+            break;
+          }
+
           case 'UNKNOWN':
           default: {
             toolsExecuted.push({
@@ -696,7 +706,7 @@ export class AgentExecutor {
   }
 
   private static isPublicIntent(intent: string): boolean {
-    const publicIntents = ['SHOW_TODAY', 'SHOW_WEEK', 'SHOW_ANALYTICS', 'SHOW_TASKS', 'SHOW_PROJECTS'];
+    const publicIntents = ['GREETING', 'HELP', 'SHOW_TODAY', 'SHOW_WEEK', 'SHOW_ANALYTICS', 'SHOW_TASKS', 'SHOW_PROJECTS'];
     return publicIntents.includes(intent);
   }
 

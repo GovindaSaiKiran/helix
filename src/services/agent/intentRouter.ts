@@ -46,6 +46,9 @@ export type AgentIntent =
   | 'EXPLAIN_TOPIC'
   | 'SUMMARIZE'
   | 'ANSWER_QUESTION'
+  // Greetings & Help
+  | 'GREETING'
+  | 'HELP'
   // Information & Navigation
   | 'SHOW_ANALYTICS'
   | 'SHOW_TODAY'
@@ -125,6 +128,23 @@ export class IntentRouter {
    */
   private static parseSingleClause(clause: string, originalPrompt: string): ParsedActionItem {
     const lower = clause.toLowerCase();
+
+    // 0. Greetings & Capabilities (Public - Friendly Gemini-style responses)
+    if (/^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|howdy|greetings|sup|yo|hi\s+helix|hello\s+helix|start)[\s!\.\?]*$/i.test(lower)) {
+      return {
+        intent: 'GREETING',
+        parameters: { rawInput: clause },
+        confidence: 0.99,
+      };
+    }
+
+    if (/^(?:help|what\s+can\s+you\s+do|how\s+to\s+use|who\s+are\s+you|capabilities|guide|menu)[\s!\.\?]*$/i.test(lower)) {
+      return {
+        intent: 'HELP',
+        parameters: { rawInput: clause },
+        confidence: 0.99,
+      };
+    }
 
     // 1. Explicit YouTube search (Strictly only when user specifically requests videos/tutorials/lectures to watch)
     if (this.isExplicitYouTubeRequest(lower)) {
