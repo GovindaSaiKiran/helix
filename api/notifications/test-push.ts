@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import admin from 'firebase-admin';
+import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 
 // Interface for extended Node HTTP response in serverless environments
 interface ServerlessResponse extends ServerResponse {
-  status: (code: number) => ServerlessResponse;
-  json: (body: any) => void;
-  send: (body: any) => void;
+  status?: (code: number) => ServerlessResponse;
+  json?: (body: any) => void;
+  send?: (body: any) => void;
 }
 
 interface ServerlessRequest extends IncomingMessage {
@@ -17,9 +18,10 @@ interface ServerlessRequest extends IncomingMessage {
 /**
  * Safe Firebase Admin singleton initialization for serverless runtime (handles cold & warm starts)
  */
-function getFirebaseAdminApp() {
-  if (admin.apps.length > 0 && admin.apps[0]) {
-    return admin.apps[0];
+function getFirebaseAdminApp(): App {
+  const existingApps = getApps();
+  if (existingApps.length > 0 && existingApps[0]) {
+    return existingApps[0];
   }
 
   const projectId = process.env.FIREBASE_PROJECT_ID || 'buildtoshipproject';
@@ -30,17 +32,18 @@ function getFirebaseAdminApp() {
     // Handle both literal newlines and escaped \n sequences from environment variables
     const formattedPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
 
-    return admin.initializeApp({
-      credential: admin.credential.cert({
+    return initializeApp({
+      credential: cert({
         projectId,
         clientEmail,
         privateKey: formattedPrivateKey,
       }),
+      projectId,
     });
   }
 
   // Fallback to project ID only if service account credentials are not provided
-  return admin.initializeApp({
+  return initializeApp({
     projectId,
   });
 }
@@ -117,9 +120,10 @@ export default async function handler(req: ServerlessRequest, res: ServerlessRes
 
     // Initialize or retrieve Firebase Admin instance
     const app = getFirebaseAdminApp();
+    const messaging = getMessaging(app);
 
     // Dispatch real Firebase Cloud Message
-    const messageId = await admin.messaging(app).send({
+    const messageId = await messaging.send({
       token: installationId,
       notification: {
         title: payloadTitle,
