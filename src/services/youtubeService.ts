@@ -8,11 +8,9 @@ export interface YouTubeVideo {
 }
 
 export class YouTubeService {
-  private static getApiKey(): string | null {
+  private static getLocalApiKey(): string | null {
     const local = localStorage.getItem('helix_youtube_api_key');
-    if (local) return local;
-
-    // Fallback to environment variable
+    if (local && local.trim().length > 0) return local.trim();
     return import.meta.env.VITE_YOUTUBE_API_KEY || null;
   }
 
@@ -21,50 +19,74 @@ export class YouTubeService {
   }
   
   public static hasApiKey(): boolean {
-    return !!this.getApiKey();
+    // True because the backend /api/youtube/search endpoint is active with server-side credentials
+    return true;
   }
 
   public static async searchStudyVideos(query: string, maxResults: number = 6): Promise<YouTubeVideo[]> {
-    const apiKey = this.getApiKey();
-    
-    if (!apiKey) {
-      throw new Error("YouTube API Key not configured. Please add it to .env.local or settings.");
+    if (!query || !query.trim()) return [];
+
+    // 1. Client-side override if user provided their own key in Settings/LocalStorage
+    const clientKey = this.getLocalApiKey();
+    if (clientKey) {
+      try {
+        const searchQuery = encodeURIComponent(`${query} tutorial OR lecture`);
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=${maxResults}&q=${searchQuery}&type=video&videoEmbeddable=true&key=${clientKey}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.items) {
+            return data.items.map((item: any) => ({
+              id: item.id?.videoId || item.etag,
+              title: this.decodeHtml(item.snippet?.title || ''),
+              description: item.snippet?.description || '',
+              thumbnailUrl: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+              channelTitle: item.snippet?.channelTitle || '',
+              publishedAt: item.snippet?.publishedAt || ''
+            }));
+          }
+        }
+      } catch (clientErr) {
+        console.warn('[YouTubeService] Client direct key failed, falling back to server API:', clientErr);
+      }
     }
 
+    // 2. Default: Call secure server-side Vercel API endpoint
     try {
-      // We append "tutorial" or "lecture" or "course" to push for educational content
-      const searchQuery = encodeURIComponent(`${query} tutorial OR lecture`);
-      
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=${maxResults}&q=${searchQuery}&type=video&videoEmbeddable=true&key=${apiKey}`
+        `${baseUrl}/api/youtube/search?query=${encodeURIComponent(query)}&maxResults=${maxResults}`
       );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error?.message || `YouTube API error: ${response.status}`);
+        throw new Error(errorData?.error || `YouTube search failed: HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      
-      if (!data.items) return [];
+      const results: any[] = data.results || [];
 
-      return data.items.map((item: any) => ({
-        id: item.id.videoId,
-        title: this.decodeHtml(item.snippet.title),
-        description: item.snippet.description,
-        thumbnailUrl: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
-        channelTitle: item.snippet.channelTitle,
-        publishedAt: item.snippet.publishedAt
+      return results.map(item => ({
+        id: item.id,
+        title: this.decodeHtml(item.title || ''),
+        description: item.description || '',
+        thumbnailUrl: item.thumbnailUrl || '',
+        channelTitle: item.channelTitle || item.channelName || '',
+        publishedAt: item.publishedAt || ''
       }));
-    } catch (error) {
-      console.error("YouTube search failed:", error);
+    } catch (error: any) {
+      console.error('[YouTubeService] Search failed:', error);
       throw error;
     }
   }
 
   private static decodeHtml(html: string): string {
+    if (typeof document === 'undefined') return html;
     const txt = document.createElement("textarea");
     txt.innerHTML = html;
     return txt.value;
   }
 }
+
