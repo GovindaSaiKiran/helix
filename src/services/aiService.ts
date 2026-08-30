@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { MCQQuestion, RoadmapModule } from '../types';
+import { AuthGuard, AUTH_REQUIRED_MESSAGE } from './authGuard';
+import { AgentExecutor } from './agent/agentExecutor';
 
 export class AiService {
   private static getGeminiKey(): string | null {
@@ -66,7 +68,6 @@ export class AiService {
 
   private static async callGemini(prompt: string, apiKey: string): Promise<string> {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Try modern gemini models with fallback
     try {
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       const result = await model.generateContent(prompt);
@@ -79,6 +80,12 @@ export class AiService {
   }
 
   private static async generate(prompt: string): Promise<string> {
+    // 1. Mandatory Centralized Authentication Check
+    const auth = await AuthGuard.checkAuth();
+    if (!auth.isAuthenticated) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
     const groqKey = this.getGroqKey();
     const geminiKey = this.getGeminiKey();
 
@@ -86,7 +93,7 @@ export class AiService {
       throw new Error('No valid Gemini or Groq API Key found. Please add one in settings or .env.local.');
     }
 
-    // Try Groq first if available (or if Gemini key format is invalid)
+    // Try Groq first if available
     if (groqKey) {
       try {
         return await this.callGroq(prompt, groqKey);
@@ -119,6 +126,12 @@ export class AiService {
   }
 
   public static async generateRoadmap(materialText: string, materialId: string): Promise<RoadmapModule[]> {
+    // Auth guard check
+    const auth = await AuthGuard.checkAuth();
+    if (!auth.isAuthenticated) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
     const prompt = `
 You are an expert curriculum designer. Analyze the following study material text and create a step-by-step roadmap divided into modules.
 Return ONLY a valid JSON array of objects. Do not include markdown formatting or backticks.
@@ -149,6 +162,12 @@ ${materialText.substring(0, 15000)}
   }
 
   public static async generateMCQs(materialText: string, materialId: string, subjectId: string): Promise<MCQQuestion[]> {
+    // Auth guard check
+    const auth = await AuthGuard.checkAuth();
+    if (!auth.isAuthenticated) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
     const prompt = `
 You are an expert tutor. Create 5 multiple-choice questions based on the following study material text.
 Return ONLY a valid JSON array of objects. Do not include markdown formatting or backticks.
@@ -196,6 +215,12 @@ ${materialText.substring(0, 15000)}
     examples: string[];
     examTips: string[];
   }> {
+    // Auth guard check
+    const auth = await AuthGuard.checkAuth();
+    if (!auth.isAuthenticated) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
     const prompt = `
 You are a university professor and expert tutor. Create complete, high-quality study content for the following academic topic:
 Topic: "${topicTitle}"
@@ -225,8 +250,8 @@ Return ONLY a valid JSON object with no markdown fences, no backticks, and exact
 }
 `;
 
-    const response = await this.generate(prompt);
     try {
+      const response = await this.generate(prompt);
       const start = response.indexOf('{');
       const end = response.lastIndexOf('}');
       if (start === -1 || end === -1) throw new Error('No JSON object found');
@@ -240,8 +265,11 @@ Return ONLY a valid JSON object with no markdown fences, no backticks, and exact
         examples: Array.isArray(parsed.examples) ? parsed.examples : ["Standard illustrative scenario applying the foundational concepts."],
         examTips: Array.isArray(parsed.examTips) ? parsed.examTips : ["Focus on core definitions and standard calculation steps."]
       };
-    } catch (e) {
-      console.warn('Failed to parse topic study content JSON:', response);
+    } catch (e: any) {
+      if (e.message === AUTH_REQUIRED_MESSAGE) {
+        throw e;
+      }
+      console.warn('Fallback topic study content generator:', e);
       return {
         topicTitle,
         subjectName,
@@ -262,6 +290,9 @@ Return ONLY a valid JSON object with no markdown fences, no backticks, and exact
     }
   }
 
+  /**
+   * Process Agent Action - Powered directly by the authoritative AgentExecutor & IntentRouter pipeline
+   */
   public static async processAgentAction(
     userPrompt: string,
     context?: { subjects?: string[]; existingTasks?: string[]; currentDate?: string }
@@ -271,104 +302,13 @@ Return ONLY a valid JSON object with no markdown fences, no backticks, and exact
       tool: 'create_task' | 'search_videos' | 'create_project' | 'delete_task' | 'delete_project' | 'navigate' | 'general_answer';
       parameters: Record<string, any>;
     }>;
+    toolResults?: any[];
   }> {
-    const todayStr = context?.currentDate || new Date().toISOString().split('T')[0];
-    const systemPrompt = `You are Helix Planning Agent, an intelligent autonomous educational assistant inside the Helix Student Planner web application.
-Today's date is: ${todayStr}.
-Enrolled subjects: ${context?.subjects?.join(', ') || 'General Courses'}.
+    const execution = await AgentExecutor.execute(userPrompt);
 
-You have direct control to execute actions on behalf of the student.
-When the user asks you to schedule a task, search for videos, create a project, delete an item, navigate, or give advice, you must return a JSON object with:
-- "reply": A friendly, helpful explanation of what you are doing or answering.
-- "toolCalls": An array of tool calls to execute.
-
-Available Tools:
-1. tool: "create_task"
-   parameters: {
-     "title": string,
-     "estimatedMinutes": number (default 45),
-     "priority": "low" | "medium" | "high" | "urgent",
-     "type": "study" | "assignment" | "project",
-     "scheduledDate": "YYYY-MM-DD" (optional, default today or specified date)
-   }
-2. tool: "search_videos"
-   parameters: {
-     "query": string,
-     "maxResults": number (default 4)
-   }
-3. tool: "create_project"
-   parameters: {
-     "title": string,
-     "category": "project" | "assignment" | "goal",
-     "priority": "low" | "medium" | "high",
-     "estimatedEffortHours": number (default 10),
-     "dueDate": "YYYY-MM-DD"
-   }
-4. tool: "delete_task"
-   parameters: {
-     "taskTitle": string
-   }
-5. tool: "delete_project"
-   parameters: {
-     "projectTitle": string
-   }
-6. tool: "navigate"
-   parameters: {
-     "page": "/study" | "/week" | "/today" | "/work" | "/analytics" | "/settings"
-   }
-
-Output strictly valid JSON only. Do not wrap in markdown or backticks.
-JSON format:
-{
-  "reply": "...",
-  "toolCalls": [ ... ]
-}`;
-
-    const prompt = `${systemPrompt}\n\nUser request: "${userPrompt}"`;
-
-    try {
-      const raw = await this.generate(prompt);
-      let cleaned = raw.trim();
-      if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
-      if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '');
-      if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
-      cleaned = cleaned.trim();
-
-      const start = cleaned.indexOf('{');
-      const end = cleaned.lastIndexOf('}');
-      if (start !== -1 && end !== -1) {
-        cleaned = cleaned.substring(start, end + 1);
-      }
-
-      const parsed = JSON.parse(cleaned);
-      return {
-        reply: parsed.reply || 'Task processed successfully.',
-        toolCalls: Array.isArray(parsed.toolCalls) ? parsed.toolCalls : []
-      };
-    } catch (e: any) {
-      console.warn('Agent action fallback:', e);
-
-      // Intelligent heuristics fallback if LLM is unavailable
-      const lower = userPrompt.toLowerCase();
-      if (lower.includes('video') || lower.includes('lecture') || lower.includes('youtube')) {
-        const query = userPrompt.replace(/find|search|videos?|for|on|about|youtube/gi, '').trim() || 'computer science tutorial';
-        return {
-          reply: `I searched YouTube for study videos on "${query}".`,
-          toolCalls: [{ tool: 'search_videos', parameters: { query, maxResults: 4 } }]
-        };
-      }
-      if (lower.includes('schedule') || lower.includes('task') || lower.includes('study for')) {
-        const title = userPrompt.replace(/schedule|add|task|study|for|tomorrow|today/gi, '').trim() || 'Focus Study Session';
-        return {
-          reply: `I scheduled "${title}" into your focus timetable.`,
-          toolCalls: [{ tool: 'create_task', parameters: { title, estimatedMinutes: 45, priority: 'medium', type: 'study' } }]
-        };
-      }
-
-      return {
-        reply: `I analyzed your request: "${userPrompt}". How else can I assist with your study schedule, projects, or lecture search?`,
-        toolCalls: []
-      };
-    }
+    return {
+      reply: execution.reply,
+      toolResults: execution.toolResults,
+    };
   }
 }

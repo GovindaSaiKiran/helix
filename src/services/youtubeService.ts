@@ -1,3 +1,5 @@
+import { AuthGuard, AUTH_REQUIRED_MESSAGE } from './authGuard';
+
 export interface YouTubeVideo {
   id: string;
   title: string;
@@ -19,14 +21,19 @@ export class YouTubeService {
   }
   
   public static hasApiKey(): boolean {
-    // True because the backend /api/youtube/search endpoint is active with server-side credentials
     return true;
   }
 
   public static async searchStudyVideos(query: string, maxResults: number = 6): Promise<YouTubeVideo[]> {
     if (!query || !query.trim()) return [];
 
-    // 1. Client-side override if user provided their own key in Settings/LocalStorage
+    // 1. Mandatory Centralized Authentication Check
+    const auth = await AuthGuard.checkAuth();
+    if (!auth.isAuthenticated) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
+    // 2. Client-side override if user provided their own key in Settings/LocalStorage
     const clientKey = this.getLocalApiKey();
     if (clientKey) {
       try {
@@ -53,7 +60,7 @@ export class YouTubeService {
       }
     }
 
-    // 2. Default: Call secure server-side Vercel API endpoint
+    // 3. Default: Call secure server-side Vercel API endpoint
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
       const response = await fetch(
@@ -89,4 +96,3 @@ export class YouTubeService {
     return txt.value;
   }
 }
-

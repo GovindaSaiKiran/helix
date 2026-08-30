@@ -228,6 +228,44 @@ export class TaskService {
     return { rolledOverCount: rolledOver.length, rolledOverTasks: rolledOver };
   }
 
+  public static async updateTask(
+    taskId: string,
+    updates: Partial<Task>
+  ): Promise<boolean> {
+    const tasks = this.getStoredTasks();
+    let updatedTask: Task | undefined;
+    const updated = tasks.map(t => {
+      if (t.id === taskId) {
+        updatedTask = { ...t, ...updates };
+        return updatedTask;
+      }
+      return t;
+    });
+    this.saveStoredTasks(updated);
+
+    try {
+      const payload: any = {};
+      if (updates.title !== undefined) payload.title = updates.title;
+      if (updates.status !== undefined) payload.status = updates.status;
+      if (updates.progress !== undefined) payload.progress = updates.progress;
+      if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate;
+      if (updates.scheduledStartTime !== undefined) payload.scheduled_start_time = updates.scheduledStartTime;
+      if (updates.scheduledEndTime !== undefined) payload.scheduled_end_time = updates.scheduledEndTime;
+      if (updates.estimatedMinutes !== undefined) payload.estimated_minutes = updates.estimatedMinutes;
+      if (updates.priority !== undefined) payload.priority = updates.priority;
+      if (updates.type !== undefined) payload.type = updates.type;
+      if (updates.notes !== undefined) payload.notes = updates.notes;
+
+      if (Object.keys(payload).length > 0) {
+        await supabase.from('tasks').update(payload).eq('id', taskId);
+      }
+    } catch (err: any) {
+      console.warn('Supabase updateTask notice:', err.message);
+    }
+
+    return true;
+  }
+
   public static async updateTaskStatus(
     taskId: string,
     status: Task['status'],
