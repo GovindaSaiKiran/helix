@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { UserProfile, AppTheme } from '../types';
 import { ProfileService } from '../services/profileService';
+import { validatePassword } from '../utils/passwordSecurity';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -286,6 +287,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password?: string, name?: string): Promise<{ success: boolean; error?: string }> => {
     setAuthError(null);
+    if (password) {
+      const validation = validatePassword(password);
+      if (!validation.isValid) {
+        const errorMsg = `Password requirement not met: ${validation.errors.join(', ')}.`;
+        setAuthError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    }
     setIsLoading(true);
     try {
       const generatedLocalId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
