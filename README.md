@@ -9,42 +9,11 @@
 [![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E.svg?style=flat&logo=supabase)](https://supabase.com/)
 [![Firebase](https://img.shields.io/badge/Firebase-Cloud%20Messaging-FFCA28.svg?style=flat&logo=firebase)](https://firebase.google.com/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-AI%20Engine-8E75B2.svg?style=flat&logo=google)](https://ai.google.dev/)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-000000?style=flat&logo=vercel)](https://helix-kappa-liart.vercel.app/)
 
----
+## 🌐 Live Demo
 
-## 📌 Table of Contents
-
-1. [Why HELIX Exists](#-why-helix-exists)
-2. [Problem Statement](#-problem-statement)
-3. [The Problem With Existing Student Planners](#-the-problem-with-existing-student-planners)
-4. [HELIX Solution](#-helix-solution)
-5. [Core Philosophy](#-core-philosophy)
-6. [Key Features](#-key-features)
-7. [Complete Feature Breakdown](#-complete-feature-breakdown)
-8. [How HELIX Works](#-how-helix-works)
-9. [Adaptive Planning Engine](#-adaptive-planning-engine)
-10. [AI Layer](#-ai-layer)
-11. [Study Intelligence](#-study-intelligence)
-12. [Replanning System](#-replanning-system)
-13. [Notifications](#-notifications)
-14. [User Data Model](#-user-data-model)
-15. [Architecture](#-architecture)
-16. [Technology Stack](#-technology-stack)
-17. [Application Pages](#-application-pages)
-18. [Authentication](#-authentication)
-19. [Database](#-database)
-20. [Security](#-security)
-21. [Environment Variables](#-environment-variables)
-22. [Local Development](#-local-development)
-23. [Production Deployment](#-production-deployment)
-24. [Project Structure](#-project-structure)
-25. [Data Flow](#-data-flow)
-26. [AI vs Deterministic Logic](#-ai-vs-deterministic-logic)
-27. [Failure Handling](#-failure-handling)
-28. [Testing & Verification](#-testing--verification)
-29. [Future Improvements](#-future-improvements)
-30. [Project Goals](#-project-goals)
-31. [Conclusion](#-conclusion)
+**👉 [https://helix-kappa-liart.vercel.app/](https://helix-kappa-liart.vercel.app/)**
 
 ---
 
@@ -104,22 +73,22 @@ HELIX bridges the gap between **Generative AI creativity** and **Deterministic m
  │                      STUDENT INPUT                     │
  │  Syllabus PDF • Tasks • Deadlines • Daily Availability │
  └───────────────────────────┬────────────────────────────┘
-                             │
-                             ▼
+                              │
+                              ▼
  ┌────────────────────────────────────────────────────────┐
  │                    AI PROPOSAL LAYER                   │
  │   Breaks syllabi into units, generates milestones,     │
  │       estimates effort & drafts study sessions         │
  └───────────────────────────┬────────────────────────────┘
-                             │
-                             ▼
+                              │
+                              ▼
  ┌────────────────────────────────────────────────────────┐
  │             DETERMINISTIC VALIDATION ENGINE            │
  │   Enforces 24h budget limits, zero slot overlaps,      │
  │    respects energy peaks, & detects deadline conflicts │
  └───────────────────────────┬────────────────────────────┘
-                             │
-                             ▼
+                              │
+                              ▼
  ┌────────────────────────────────────────────────────────┐
  │              ADAPTIVE STUDENT DASHBOARD                │
  │    Interactive Timetable • Study Hub • Replanning      │
@@ -133,8 +102,8 @@ HELIX bridges the gap between **Generative AI creativity** and **Deterministic m
 
 > ### **"AI proposes. Deterministic logic validates. The student decides."**
 
-1. **AI Proposes**: Large Language Models (Google Gemini & Groq Llama) parse complex PDFs, extract subjects, break projects into granular subtasks, formulate interactive quizzes, and recommend schedules.
-2. **Deterministic Logic Validates**: Mathematical algorithms enforce hard constraints—no two tasks can occupy the same minute, no day can exceed 24 hours, study blocks align with designated energy peaks, and milestones must precede project deadlines.
+1. **AI Proposes**: Large Language Models (Google Gemini & Groq Llama) parse complex PDFs, extract subjects, break projects into granular subtasks, formulate interactive quizzes, and recommend study paths.
+2. **Deterministic Logic Validates**: Mathematical algorithms enforce hard constraints—no two tasks can occupy the same minute, no day can exceed 24 hours, and study blocks align with designated energy peaks.
 3. **The Student Decides**: The student retains complete agency. Every AI proposal or replan suggestion requires explicit student acceptance or manual refinement.
 
 ---
@@ -146,7 +115,7 @@ HELIX bridges the gap between **Generative AI creativity** and **Deterministic m
 - 🔄 **Intelligent Conflict Replanning**: 1-click schedule repair when tasks are missed or urgent events arise.
 - 📚 **Integrated Study Hub**: Complete syllabus unit breakdown, AI flashcard sparks, and topic learning summaries.
 - 🎯 **Curated Lecture Recommendations**: Automated YouTube educational lecture search filtered strictly by topic name.
-- ⏱️ **Picture-in-Picture Floating Study Timer & Stopwatch**: Draggable floating window with ambient noise generator, lap tracking, custom minute inputs, and melodic Web Audio API alarm chimes.
+- ⏱️ **Picture-in-Picture Floating Study Timer & Stopwatch**: Draggable floating window with ambient noise generator, lap tracking, custom minute inputs, and melodic Web Audio API alarm chime.
 - 📊 **Academic Analytics**: Subject completion distribution donut charts, focus hours tracking, and productivity velocity metrics.
 - 👁️ **Triple Appearance Engine**: Clean Light mode, Sleek Dark mode, and true 2700K optical **Eye Comfort Warm Shield** for late-night study sessions.
 - 🔔 **Firebase Cloud Messaging Web Push**: Real browser push notifications for scheduled session reminders and deadline alerts.
@@ -271,7 +240,6 @@ HELIX utilizes a dual-engine AI architecture:
 # 🗄️ User Data Model
 
 ```typescript
-// Core Entities in HELIX
 interface UserProfile {
   id: string;
   name: string;
@@ -288,74 +256,29 @@ interface UserProfile {
     fcmPush: boolean;
   };
 }
-
-interface Task {
-  id: string;
-  userId: string;
-  title: string;
-  description?: string;
-  subjectId?: string;
-  projectId?: string;
-  scheduledDate: string;
-  startTime?: string;
-  endTime?: string;
-  durationMinutes: number;
-  difficulty: 'easy' | 'medium' | 'hard';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'pending' | 'in_progress' | 'completed' | 'deferred';
-  actualMinutesSpent?: number;
-}
-
-interface Project {
-  id: string;
-  userId: string;
-  title: string;
-  subjectId?: string;
-  deadline: string;
-  progress: number;
-  milestones: Milestone[];
-}
-
-interface DayPreference {
-  dayOfWeek: 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
-  isStudyDay: boolean;
-  maxStudyHours: number;
-  energyPeak: 'morning' | 'afternoon' | 'evening' | 'night';
-  slots: { start: string; end: string; label: string }[];
-}
 ```
 
 ---
 
 # 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           CLIENT BROWSER                                │
-│                                                                         │
-│   React 19 • TypeScript • Tailwind CSS 4 • Lucide Icons • Canvas Confetti│
-│                                                                         │
-│   ┌───────────────────┐  ┌───────────────────┐  ┌────────────────────┐  │
-│   │   Auth Context    │  │   Plan Context    │  │Notification Context│  │
-│   └─────────┬─────────┘  └─────────┬─────────┘  └──────────┬─────────┘  │
-│             │                      │                       │            │
-│   ┌─────────▼──────────────────────▼───────────────────────▼────────┐  │
-│   │             Firebase Messaging & Service Worker                 │  │
-│   └────────────────────────────────┬────────────────────────────────┘  │
-└────────────────────────────────────┼────────────────────────────────────┘
-                                     │ HTTP / REST / Realtime
-                    ┌────────────────┴────────────────┐
-                    │                                 │
-                    ▼                                 ▼
-┌───────────────────────────────────────┐  ┌──────────────────────────────┐
-│            EXPRESS BACKEND            │  │      SUPABASE CLOUD          │
-│                                       │  │                              │
-│ • Deterministic Packing Engine        │  │ • PostgreSQL Database        │
-│ • Google Gemini 1.5 Flash API         │  │ • Row Level Security (RLS)   │
-│ • Groq AI Fallback Engine             │  │ • User Authentication        │
-│ • YouTube Search API Integration      │  │ • Realtime Subscriptions     │
-│ • Firebase Admin FCM Push Sender      │  │ • Offline LocalStorage Sync  │
-└───────────────────────────────────────┘  └──────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                           CLIENT BROWSER                          │
+│ React 19 • TypeScript • Tailwind CSS 4 • Lucide Icons • Confetti │
+└───────────────────────────────────────┬─────────────────────────────┘
+                                        │ HTTP / REST / Realtime
+                    ┌───────────────────┴───────────────────┐
+                    │                                       │
+                    ▼                                       ▼
+┌───────────────────────────────────────┐   ┌──────────────────────────────┐
+│            EXPRESS BACKEND            │   │      SUPABASE CLOUD          │
+│ • Deterministic Packing Engine        │   │ • PostgreSQL Database        │
+│ • Google Gemini 1.5 Flash API         │   │ • Row Level Security (RLS)   │
+│ • Groq AI Fallback Engine             │   │ • User Authentication        │
+│ • YouTube Search API Integration      │   │ • Realtime Subscriptions     │
+│ • Firebase Admin FCM Push Sender      │   │ • Offline LocalStorage Sync  │
+└───────────────────────────────────────┘   └──────────────────────────────┘
 ```
 
 ---
@@ -422,16 +345,6 @@ interface DayPreference {
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 VITE_API_BASE_URL=http://localhost:5000
-
-# Firebase Cloud Messaging Web Push (Client)
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
-VITE_FIREBASE_VAPID_KEY=
 ```
 
 ### Backend Configuration (`server/.env`):
@@ -440,19 +353,9 @@ PORT=5000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 SUPABASE_SECRET_KEY=your_supabase_secret_key
-
-# AI Engines
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-1.5-flash
 GROQ_API_KEY=your_groq_api_key
-
-# YouTube Data API
 YOUTUBE_API_KEY=your_youtube_api_key
-
-# Firebase Admin Push Sender (Optional)
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
 ```
 
 ---
@@ -506,101 +409,27 @@ The application will be live at `http://localhost:5173`.
 # 📁 Project Structure
 
 ```text
-BUILD_TO_SHIP_PROJECT/
+helix/
 ├── public/
 │   ├── favicon.svg
-│   └── firebase-messaging-sw.js    # Background push notification worker
+│   └── firebase-messaging-sw.js
 ├── server/
 │   ├── .env.example
-│   ├── index.ts                     # Express backend API & AI orchestrator
+│   ├── index.ts
 │   └── planner/
-│       └── deterministicPlanner.ts  # Mathematical packing algorithms
+│       └── deterministicPlanner.ts
 ├── src/
 │   ├── components/
-│   │   ├── charts/
-│   │   │   └── DonutChart.tsx
-│   │   ├── common/
-│   │   │   ├── Badge.tsx
-│   │   │   ├── Button.tsx
-│   │   │   ├── Card.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── MetricCard.tsx
-│   │   │   ├── Modal.tsx
-│   │   │   ├── ProgressBar.tsx
-│   │   │   ├── Select.tsx
-│   │   │   ├── StatusBadge.tsx
-│   │   │   └── TimelineItem.tsx
-│   │   ├── dashboard/
-│   │   │   └── DailyFlashcardSpark.tsx
-│   │   ├── layout/
-│   │   │   ├── AppLayout.tsx
-│   │   │   ├── PageHeader.tsx
-│   │   │   ├── Sidebar.tsx
-│   │   │   └── Topbar.tsx
-│   │   ├── shared/
-│   │   │   ├── AgentChatbot.tsx
-│   │   │   ├── CommandPalette.tsx
-│   │   │   ├── FloatingStudyTimer.tsx
-│   │   │   ├── PomodoroFocusModal.tsx
-│   │   │   ├── ProjectModal.tsx
-│   │   │   ├── StudyTimerModal.tsx
-│   │   │   ├── SubjectModal.tsx
-│   │   │   ├── TaskModal.tsx
-│   │   │   ├── UrgentTaskModal.tsx
-│   │   │   └── WeeklyAvailabilityModal.tsx
-│   │   └── study/
-│   │       ├── AiAnalysisModal.tsx
-│   │       └── McqPracticeView.tsx
 │   ├── context/
-│   │   ├── AuthContext.tsx
-│   │   ├── NotificationContext.tsx
-│   │   └── PlanContext.tsx
 │   ├── data/
-│   │   └── mockData.ts
 │   ├── lib/
-│   │   ├── firebase.ts
-│   │   └── supabaseClient.ts
 │   ├── pages/
-│   │   ├── AnalyticsPage.tsx
-│   │   ├── DashboardPage.tsx
-│   │   ├── LandingPage.tsx
-│   │   ├── LoginPage.tsx
-│   │   ├── OnboardingPage.tsx
-│   │   ├── PlanningAgentPage.tsx
-│   │   ├── ProjectDetailPage.tsx
-│   │   ├── QuizPage.tsx
-│   │   ├── QuizResultPage.tsx
-│   │   ├── ReplanningPage.tsx
-│   │   ├── SettingsPage.tsx
-│   │   ├── StudyHubPage.tsx
-│   │   ├── TodayPage.tsx
-│   │   ├── TopicLearningPage.tsx
-│   │   ├── WeekPage.tsx
-│   │   └── WorkPage.tsx
 │   ├── services/
-│   │   ├── aiService.ts
-│   │   ├── apiClient.ts
-│   │   ├── availabilityService.ts
-│   │   ├── firebaseMessaging.ts
-│   │   ├── mcqService.ts
-│   │   ├── notificationService.ts
-│   │   ├── plannerService.ts
-│   │   ├── profileService.ts
-│   │   ├── projectService.ts
-│   │   ├── studyService.ts
-│   │   ├── subjectService.ts
-│   │   ├── taskService.ts
-│   │   └── youtubeService.ts
 │   ├── types/
-│   │   └── index.ts
 │   ├── utils/
-│   │   ├── confettiHelper.ts
-│   │   └── pdfParser.ts
 │   ├── App.tsx
 │   ├── index.css
 │   └── main.tsx
-├── supabase/
-│   └── schema.sql                   # Database schema & RLS policies
 ├── .env.example
 ├── .gitignore
 ├── package.json
@@ -669,7 +498,7 @@ graph TD
 
 # 🏆 Project Goals
 
-HELIX was built to provide students with a comprehensive, stress-free academic productivity environment that protects focus, guarantees realistic deadlines, and adapts in real time to the chaotic nature of university and school life.
+HELIX was built to provide students with a comprehensive, stress-free academic productivity environment that protects focus, guarantees realistic deadlines, and adapts in real time to the chaotic nature of student life.
 
 ---
 
