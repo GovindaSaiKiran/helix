@@ -300,6 +300,13 @@ export interface ReplanningProposal {
     description: string;
     impactType: 'postpone' | 'reduce' | 'allocate' | 'protect';
   }[];
+  aiExplanation?: {
+    summary: string;
+    reasoning: string;
+    prioritizedItems: string[];
+    studyPacingTip: string;
+  };
+  isAiExplained?: boolean;
 }
 
 export interface AppNotification {

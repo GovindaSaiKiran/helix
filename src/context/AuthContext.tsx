@@ -1,17 +1,29 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  updateProfile as updateFirebaseProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
 import { UserProfile, AppTheme } from '../types';
 import { ProfileService } from '../services/profileService';
 import { validatePassword } from '../utils/passwordSecurity';
 
 interface AuthContextType {
   user: UserProfile | null;
+  firebaseUser: FirebaseUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   authError: string | null;
   theme: AppTheme;
   setTheme: (theme: AppTheme) => Promise<void>;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password?: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -35,7 +47,33 @@ const defaultGuestProfile: UserProfile = {
   notificationPreferences: { inApp: true, fcmPush: true },
 };
 
+function mapFirebaseAuthError(err: any): string {
+  if (!err?.code) return err?.message || 'Authentication failed.';
+  switch (err.code) {
+    case 'auth/user-not-found':
+      return 'No registered account found with this email.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Invalid email or password. Please try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists. Please log in.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/too-many-requests':
+      return 'Access temporarily disabled due to many failed attempts. Try again later.';
+    case 'auth/popup-closed-by-user':
+      return 'Google sign-in popup was closed.';
+    case 'auth/network-request-failed':
+      return 'Network connection failed. Offline guest mode enabled.';
+    default:
+      return err.message || 'Authentication operation failed.';
+  }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
       const cached = localStorage.getItem('helix_user_profile');
@@ -85,98 +123,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('helix_theme', theme);
   }, [theme]);
 
-  // Initialize Auth State from Supabase
+  // Construct unified profile from Firebase user
+  const buildProfileFromFirebase = (fbUser: FirebaseUser, cachedParsed?: any): UserProfile => {
+    return {
+      id: fbUser.uid,
+      name: fbUser.displayName || cachedParsed?.name || fbUser.email?.split('@')[0] || 'Student',
+      email: fbUser.email || '',
+      avatarUrl: fbUser.photoURL || cachedParsed?.avatarUrl,
+      course: cachedParsed?.course || 'B.Tech',
+      stream: cachedParsed?.stream || 'Computer Science',
+      year: cachedParsed?.year || '2nd Year',
+      enrolledSubjects: cachedParsed?.enrolledSubjects || ['DBMS', 'DSA', 'Operating Systems', 'Mathematics'],
+      theme: (cachedParsed?.theme as AppTheme) || theme || 'light',
+      eyeComfortWarmth: cachedParsed?.eyeComfortWarmth ?? 50,
+      reminderTimings: cachedParsed?.reminderTimings || ['10_min', '30_min', 'at_start'],
+      notificationPreferences: cachedParsed?.notificationPreferences || { inApp: true, fcmPush: true },
+    };
+  };
+
+  // Listen to Firebase Auth state
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
-      try {
-        setIsLoading(true);
-        const { data: { session }, error } = await supabase.auth.getSession();
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (!mounted) return;
+      setFirebaseUser(fbUser);
 
-        if (error) {
-          console.warn('Supabase getSession error:', error.message);
-        }
-
-        if (session?.user && mounted) {
-          const profile = await ProfileService.getProfile(session.user.id);
-          if (profile) {
+      if (fbUser) {
+        try {
+          const profile = await ProfileService.getProfile(fbUser.uid);
+          if (profile && mounted) {
             setUser(profile);
-            if (profile.theme) {
-              setThemeState(profile.theme);
-            }
-          } else {
-            // New user without database profile row yet -> merge cached local profile
+            if (profile.theme) setThemeState(profile.theme);
+            localStorage.setItem('helix_user_profile', JSON.stringify(profile));
+          } else if (mounted) {
             const cached = localStorage.getItem('helix_user_profile');
             const cachedParsed = cached ? JSON.parse(cached) : {};
-
-            const newProfile: UserProfile = {
-              id: session.user.id,
-              name: cachedParsed.name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Student',
-              email: session.user.email || '',
-              course: cachedParsed.course || '',
-              stream: cachedParsed.stream || '',
-              year: cachedParsed.year || '',
-              enrolledSubjects: cachedParsed.enrolledSubjects || [],
-              theme: (cachedParsed.theme as AppTheme) || theme || 'light',
-              eyeComfortWarmth: cachedParsed.eyeComfortWarmth ?? 50,
-              reminderTimings: cachedParsed.reminderTimings || ['10_min', '30_min', 'at_start'],
-              notificationPreferences: cachedParsed.notificationPreferences || { inApp: true, fcmPush: true },
-            };
-            await ProfileService.upsertProfile(newProfile);
+            const newProfile = buildProfileFromFirebase(fbUser, cachedParsed);
             setUser(newProfile);
+            localStorage.setItem('helix_user_profile', JSON.stringify(newProfile));
+            await ProfileService.upsertProfile(newProfile);
           }
-        } else if (mounted) {
-          // Keep cached local user or default profile for offline / guest use
-          const cached = localStorage.getItem('helix_user_profile');
-          if (cached) {
+        } catch (err: any) {
+          console.warn('[Firebase Auth] Profile sync notice:', err.message);
+        }
+      } else if (mounted) {
+        // Fall back to local cached profile or default guest
+        const cached = localStorage.getItem('helix_user_profile');
+        if (cached) {
+          try {
             setUser(JSON.parse(cached));
-          } else {
+          } catch {
             setUser(defaultGuestProfile);
           }
-        }
-      } catch (err: any) {
-        console.warn('Auth initialization error:', err.message);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listen to Supabase Auth State changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const profile = await ProfileService.getProfile(session.user.id);
-        if (profile) {
-          setUser(profile);
-          if (profile.theme) setThemeState(profile.theme);
         } else {
-          const cached = localStorage.getItem('helix_user_profile');
-          const cachedParsed = cached ? JSON.parse(cached) : {};
-          const newProfile: UserProfile = {
-            id: session.user.id,
-            name: cachedParsed.name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Student',
-            email: session.user.email || '',
-            course: cachedParsed.course || '',
-            stream: cachedParsed.stream || '',
-            year: cachedParsed.year || '',
-            enrolledSubjects: cachedParsed.enrolledSubjects || [],
-            theme: (cachedParsed.theme as AppTheme) || theme || 'light',
-            eyeComfortWarmth: cachedParsed.eyeComfortWarmth ?? 50,
-            reminderTimings: ['10_min', '30_min', 'at_start'],
-            notificationPreferences: { inApp: true, fcmPush: true },
-          };
-          setUser(newProfile);
-          await ProfileService.upsertProfile(newProfile);
+          setUser(defaultGuestProfile);
         }
       }
-      setIsLoading(false);
+
+      if (mounted) setIsLoading(false);
     });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
@@ -196,6 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
     setIsLoading(true);
     try {
+      // Demo / Guest instant login bypass
       if (!password || email === 'demo@helix.edu' || email === 'guest@helix.edu') {
         const localUser: UserProfile = {
           id: `usr_${Date.now()}`,
@@ -215,69 +226,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true };
       }
 
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const fbUser = userCredential.user;
 
-        if (!error && data.user) {
-          let profile = await ProfileService.getProfile(data.user.id);
-          if (!profile) {
-            const cached = localStorage.getItem('helix_user_profile');
-            const cachedParsed = cached ? JSON.parse(cached) : {};
-            profile = {
-              id: data.user.id,
-              name: cachedParsed.name || data.user.user_metadata?.full_name || email.split('@')[0] || 'Student',
-              email: data.user.email || email,
-              course: cachedParsed.course || '',
-              stream: cachedParsed.stream || '',
-              year: cachedParsed.year || '',
-              enrolledSubjects: cachedParsed.enrolledSubjects || [],
-              theme: (cachedParsed.theme as AppTheme) || theme || 'light',
-              eyeComfortWarmth: cachedParsed.eyeComfortWarmth ?? 50,
-              reminderTimings: ['10_min', '30_min', 'at_start'],
-              notificationPreferences: { inApp: true, fcmPush: true },
-            };
-            await ProfileService.upsertProfile(profile);
-          }
-          setUser(profile);
-          if (profile.theme) setThemeState(profile.theme);
-          localStorage.setItem('helix_user_profile', JSON.stringify(profile));
-          return { success: true };
-        }
-      } catch (e) {
-        console.warn('Supabase signIn notice:', e);
+      let profile = await ProfileService.getProfile(fbUser.uid);
+      if (!profile) {
+        const cached = localStorage.getItem('helix_user_profile');
+        const cachedParsed = cached ? JSON.parse(cached) : {};
+        profile = buildProfileFromFirebase(fbUser, cachedParsed);
+        await ProfileService.upsertProfile(profile);
       }
 
-      // Check for cached user or create session locally so the student is never locked out
-      const cached = localStorage.getItem('helix_user_profile');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.email && parsed.email.toLowerCase() === email.toLowerCase()) {
-          setUser(parsed);
-          return { success: true };
-        }
-      }
-
-      const localUser: UserProfile = {
-        id: `usr_${Date.now()}`,
-        name: email.split('@')[0] || 'Student',
-        email,
-        course: 'B.Tech',
-        stream: 'Computer Science',
-        year: '2nd Year',
-        enrolledSubjects: ['DBMS', 'DSA', 'Operating Systems', 'Mathematics'],
-        theme: theme || 'light',
-        eyeComfortWarmth: 50,
-        reminderTimings: ['10_min', '30_min', 'at_start'],
-        notificationPreferences: { inApp: true, fcmPush: true },
-      };
-      setUser(localUser);
-      localStorage.setItem('helix_user_profile', JSON.stringify(localUser));
+      setUser(profile);
+      if (profile.theme) setThemeState(profile.theme);
+      localStorage.setItem('helix_user_profile', JSON.stringify(profile));
       return { success: true };
     } catch (err: any) {
-      const msg = err.message || 'Login failed';
+      console.warn('[Firebase Auth] Login error:', err);
+      // Offline fallback: check cached user so user is never locked out
+      const cached = localStorage.getItem('helix_user_profile');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.email && parsed.email.toLowerCase() === email.toLowerCase()) {
+            setUser(parsed);
+            return { success: true };
+          }
+        } catch {}
+      }
+
+      const msg = mapFirebaseAuthError(err);
+      setAuthError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+
+      let profile = await ProfileService.getProfile(fbUser.uid);
+      if (!profile) {
+        const cached = localStorage.getItem('helix_user_profile');
+        const cachedParsed = cached ? JSON.parse(cached) : {};
+        profile = buildProfileFromFirebase(fbUser, cachedParsed);
+        await ProfileService.upsertProfile(profile);
+      }
+
+      setUser(profile);
+      if (profile.theme) setThemeState(profile.theme);
+      localStorage.setItem('helix_user_profile', JSON.stringify(profile));
+      return { success: true };
+    } catch (err: any) {
+      console.warn('[Firebase Auth] Google Sign-in error:', err);
+      const msg = mapFirebaseAuthError(err);
       setAuthError(msg);
       return { success: false, error: msg };
     } finally {
@@ -297,51 +304,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setIsLoading(true);
     try {
-      const generatedLocalId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password || 'Password123!');
+      const fbUser = userCredential.user;
+
+      if (name) {
+        try {
+          await updateFirebaseProfile(fbUser, { displayName: name });
+        } catch (profileErr) {
+          console.warn('[Firebase Auth] Failed to update displayName:', profileErr);
+        }
+      }
+
       const cached = localStorage.getItem('helix_user_profile');
       const cachedParsed = cached ? JSON.parse(cached) : {};
 
-      const localProfile: UserProfile = {
-        id: generatedLocalId,
-        name: name || cachedParsed.name || email.split('@')[0] || 'Student',
-        email,
-        course: cachedParsed.course || '',
-        stream: cachedParsed.stream || '',
-        year: cachedParsed.year || '',
-        enrolledSubjects: cachedParsed.enrolledSubjects || [],
+      const newProfile: UserProfile = {
+        id: fbUser.uid,
+        name: name || fbUser.displayName || email.split('@')[0] || 'Student',
+        email: fbUser.email || email,
+        course: cachedParsed.course || 'B.Tech',
+        stream: cachedParsed.stream || 'Computer Science',
+        year: cachedParsed.year || '2nd Year',
+        enrolledSubjects: cachedParsed.enrolledSubjects || ['DBMS', 'DSA', 'Operating Systems', 'Mathematics'],
         theme: (cachedParsed.theme as AppTheme) || theme || 'light',
         eyeComfortWarmth: cachedParsed.eyeComfortWarmth ?? 50,
         reminderTimings: ['10_min', '30_min', 'at_start'],
         notificationPreferences: { inApp: true, fcmPush: true },
       };
 
-      // Set user profile locally immediately
-      setUser(localProfile);
-      localStorage.setItem('helix_user_profile', JSON.stringify(localProfile));
-
-      // Asynchronously attempt Supabase signup in background
-      try {
-        const { data } = await supabase.auth.signUp({
-          email,
-          password: password || 'Password123!',
-          options: {
-            data: { full_name: name || '' },
-          },
-        });
-
-        if (data?.user) {
-          localProfile.id = data.user.id;
-          setUser(localProfile);
-          localStorage.setItem('helix_user_profile', JSON.stringify(localProfile));
-          await ProfileService.upsertProfile(localProfile);
-        }
-      } catch (sbErr) {
-        console.warn('Supabase remote sign up notice (local session active):', sbErr);
-      }
+      setUser(newProfile);
+      localStorage.setItem('helix_user_profile', JSON.stringify(newProfile));
+      await ProfileService.upsertProfile(newProfile);
 
       return { success: true };
     } catch (err: any) {
-      const msg = err.message || 'Sign up failed';
+      console.warn('[Firebase Auth] SignUp error:', err);
+      const msg = mapFirebaseAuthError(err);
       setAuthError(msg);
       return { success: false, error: msg };
     } finally {
@@ -353,18 +351,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`,
-      });
-
-      if (error) {
-        setAuthError(error.message);
-        return { success: false, error: error.message };
-      }
-
+      await sendPasswordResetEmail(auth, email);
       return { success: true };
     } catch (err: any) {
-      const msg = err.message || 'Password reset failed';
+      console.warn('[Firebase Auth] Password reset error:', err);
+      const msg = mapFirebaseAuthError(err);
       setAuthError(msg);
       return { success: false, error: msg };
     } finally {
@@ -379,12 +370,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           firebaseMessaging.handleLogoutCleanup(user.id);
         }).catch(() => {});
       }
-      await supabase.auth.signOut();
+      await signOut(auth);
     } catch (err) {
-      console.warn('Signout error:', err);
+      console.warn('[Firebase Auth] Signout error:', err);
     } finally {
       localStorage.removeItem('helix_user_profile');
       setUser(defaultGuestProfile);
+      setFirebaseUser(null);
     }
   };
 
@@ -407,12 +399,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
+        firebaseUser,
         isAuthenticated: !!user,
         isLoading,
         authError,
         theme,
         setTheme,
         login,
+        loginWithGoogle,
         signUp,
         resetPassword,
         logout,
@@ -430,4 +424,3 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;
 };
-

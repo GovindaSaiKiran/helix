@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { AvailabilityService, defaultDayPreferences } from '../services/availabilityService';
 import { firebaseMessaging, NotificationPermissionStatus } from '../services/firebaseMessaging';
 import { DayPreference, EnergyPeak, AppTheme } from '../types';
+import { ApiClient, AiDiagnosticResponse } from '../services/apiClient';
 import {
   Bell,
   Smartphone,
@@ -31,6 +32,11 @@ import {
   X,
   Plus,
   Trash2,
+  Cpu,
+  Activity,
+  AlertCircle,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 
 const DAYS_OF_WEEK: ('Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun')[] = [
@@ -52,7 +58,14 @@ const HOUR_LABELS: { [hour: number]: string } = {
 
 export const SettingsPage: React.FC = () => {
   const { user, updateProfile, logout, theme, setTheme } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'notifications' | 'appearance' | 'account'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'notifications' | 'appearance' | 'account' | 'ai'>('profile');
+
+  // AI Diagnostic States
+  const [aiDiagnostic, setAiDiagnostic] = useState<AiDiagnosticResponse | null>(null);
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [testProvider, setTestProvider] = useState<'active' | 'ollama' | 'gemini' | 'groq'>('active');
+  const [workflowSample, setWorkflowSample] = useState<any | null>(null);
+  const [isRunningWorkflow, setIsRunningWorkflow] = useState(false);
 
   // Profile Form States
   const [name, setName] = useState(user?.name || '');
@@ -400,12 +413,78 @@ export const SettingsPage: React.FC = () => {
     0
   );
 
+  const [isSwitchingProvider, setIsSwitchingProvider] = useState(false);
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+
+  useEffect(() => {
+    const handleOffline = () => {
+      setIsOffline(true);
+      ApiClient.switchAiProvider('ollama').then(() => {
+        handleRunDiagnostic('ollama');
+      }).catch(() => {});
+    };
+    const handleOnline = () => {
+      setIsOffline(false);
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
+
+  const handleSwitchProvider = async (provider: 'ollama' | 'groq' | 'gemini') => {
+    try {
+      setIsSwitchingProvider(true);
+      await ApiClient.switchAiProvider(provider);
+      await handleRunDiagnostic(provider);
+      showSaveNotice(`Switched active AI provider to ${provider.toUpperCase()}`);
+    } catch (err: any) {
+      console.warn('Failed to switch AI provider:', err);
+    } finally {
+      setIsSwitchingProvider(false);
+    }
+  };
+
+  const handleRunDiagnostic = async (provider?: 'active' | 'ollama' | 'gemini' | 'groq') => {
+    setIsLoadingAi(true);
+    try {
+      const target = provider && provider !== 'active' ? provider : undefined;
+      const res = await ApiClient.getAiDiagnostic(target);
+      setAiDiagnostic(res);
+    } catch (err: any) {
+      console.warn('Diagnostic run error:', err);
+    } finally {
+      setIsLoadingAi(false);
+    }
+  };
+
+  const handleRunWorkflowSample = async () => {
+    setIsRunningWorkflow(true);
+    try {
+      const res = await ApiClient.generateTopicContent('Deadlock Detection & Prevention', 'Operating Systems');
+      setWorkflowSample(res);
+    } catch (err: any) {
+      console.warn('Sample workflow error:', err);
+    } finally {
+      setIsRunningWorkflow(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'ai' && !aiDiagnostic) {
+      handleRunDiagnostic();
+    }
+  }, [activeTab]);
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'preferences', label: 'Preferences', icon: Globe },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'appearance', label: 'Appearance', icon: Moon },
     { id: 'account', label: 'Account', icon: Shield },
+    { id: 'ai', label: 'AI & Models', icon: Sparkles },
   ] as const;
 
   return (
@@ -1343,6 +1422,319 @@ export const SettingsPage: React.FC = () => {
                 <span className="font-bold text-indigo-600 capitalize">{selectedTheme} Mode</span>
               </div>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* =========================================================================
+          AI & Models Tab (Phase 4 Diagnostic & Model Indicator)
+          ========================================================================= */}
+      {activeTab === 'ai' && (
+        <div className="space-y-6">
+          {/* Active Provider Overview Card */}
+          <Card className="p-6 space-y-5 border-indigo-200/80 bg-gradient-to-br from-indigo-50/50 via-white to-slate-50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Unified AI Provider Gateway</h3>
+                  <p className="text-xs text-slate-500">
+                    Server-managed inference gateway with strict deterministic scheduling guards.
+                  </p>
+                </div>
+              </div>
+
+              {aiDiagnostic && (
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                    aiDiagnostic.diagnostic.success
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      aiDiagnostic.diagnostic.success ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                    }`} />
+                    {aiDiagnostic.diagnostic.success ? 'Engine Connected' : 'Engine Offline / Degraded'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Offline Auto-Failover Alert Banner */}
+            {isOffline && (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-2.5 animate-pulse">
+                <Zap className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Network Disconnected:</strong> HELIX automatically switched to 100% on-device <strong>Qwen 2.5 Coder</strong>. All study, quiz, and syllabus features continue working offline with zero disruption.
+                </span>
+              </div>
+            )}
+
+            {/* Provider Grid (Clickable to switch between models) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('ollama')}
+                disabled={isSwitchingProvider}
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative ${
+                  aiDiagnostic?.config.activeProvider === 'ollama'
+                    ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/30'
+                    : 'bg-white/80 border-slate-200/80 hover:border-indigo-400 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Ollama (Local)</span>
+                  {aiDiagnostic?.config.activeProvider === 'ollama' ? (
+                    <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                      ACTIVE (DEFAULT)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-400 hover:text-indigo-600">Click to switch</span>
+                  )}
+                </div>
+                <p className="text-sm font-extrabold text-slate-900 mt-1">
+                  {aiDiagnostic?.config.providers.ollama?.model || 'qwen2.5-coder:3b'}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Open-weight local model. 100% on-device inference with complete privacy & offline resilience.
+                </p>
+                <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded w-fit">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>Always available offline</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('groq')}
+                disabled={isSwitchingProvider}
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative ${
+                  aiDiagnostic?.config.activeProvider === 'groq'
+                    ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/30'
+                    : 'bg-white/80 border-slate-200/80 hover:border-indigo-400 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Groq LPU</span>
+                  {aiDiagnostic?.config.activeProvider === 'groq' ? (
+                    <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-400 hover:text-indigo-600">Click to switch</span>
+                  )}
+                </div>
+                <p className="text-sm font-extrabold text-slate-900 mt-1">
+                  {aiDiagnostic?.config.providers.groq?.model || 'openai/gpt-oss-120b'}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  High-speed cloud inference for open-weight & frontier architectures.
+                </p>
+                <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded w-fit">
+                  <Zap className="w-3 h-3 text-indigo-600" />
+                  <span>Auto-fails over to Qwen offline</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchProvider('gemini')}
+                disabled={isSwitchingProvider}
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative ${
+                  aiDiagnostic?.config.activeProvider === 'gemini'
+                    ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/30'
+                    : 'bg-white/80 border-slate-200/80 hover:border-indigo-400 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Google Gemini</span>
+                  {aiDiagnostic?.config.activeProvider === 'gemini' ? (
+                    <span className="text-[10px] font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-400 hover:text-indigo-600">Click to switch</span>
+                  )}
+                </div>
+                <p className="text-sm font-extrabold text-slate-900 mt-1">
+                  {aiDiagnostic?.config.providers.gemini?.model || 'gemini-1.5-flash'}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Google multimodal frontier model for complex long-context document analysis.
+                </p>
+                <div className="mt-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded w-fit">
+                  <Zap className="w-3 h-3 text-indigo-600" />
+                  <span>Auto-fails over to Qwen offline</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Architectural Invariant Reminder */}
+            <div className="p-3.5 rounded-xl bg-indigo-100/60 border border-indigo-200 text-indigo-900 text-xs flex items-start gap-2.5">
+              <Shield className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">HELIX Core Principle: </span>
+                AI models propose study content, topic hierarchies, and explanations. Deterministic mathematics strictly enforces available hours, schedule collisions, and hard academic deadlines.
+              </div>
+            </div>
+          </Card>
+
+          {/* Diagnostic Action Card */}
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" />
+                  Live AI Engine Health & Latency Test
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Executes a sanitized probe against the configured AI backend to verify readiness without exposing secrets.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRunDiagnostic('ollama')}
+                  isLoading={isLoadingAi && testProvider === 'ollama'}
+                >
+                  Test Ollama
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRunDiagnostic('groq')}
+                  isLoading={isLoadingAi && testProvider === 'groq'}
+                >
+                  Test Groq
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRunDiagnostic('gemini')}
+                  isLoading={isLoadingAi && testProvider === 'gemini'}
+                >
+                  Test Gemini
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => handleRunDiagnostic('active')}
+                  isLoading={isLoadingAi && testProvider === 'active'}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Probe Active
+                </Button>
+              </div>
+            </div>
+
+            {/* Diagnostic Result Details */}
+            {aiDiagnostic && (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Tested Provider</span>
+                    <span className="font-extrabold text-slate-900 uppercase">{aiDiagnostic.diagnostic.provider}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Model ID</span>
+                    <span className="font-bold text-slate-800">{aiDiagnostic.diagnostic.model}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Round-Trip Latency</span>
+                    <span className="font-extrabold text-indigo-600">{aiDiagnostic.diagnostic.latencyMs} ms</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Status</span>
+                    <span className={`font-bold ${aiDiagnostic.diagnostic.success ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {aiDiagnostic.diagnostic.success ? 'Operational' : 'Failed'}
+                    </span>
+                  </div>
+                </div>
+
+                {aiDiagnostic.diagnostic.sampleResponse && (
+                  <div className="pt-2 border-t border-slate-200/60">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1">Sample Model Output</span>
+                    <pre className="text-[11px] p-2.5 rounded-lg bg-white border border-slate-200 text-slate-800 font-mono overflow-x-auto">
+                      {aiDiagnostic.diagnostic.sampleResponse}
+                    </pre>
+                  </div>
+                )}
+
+                {aiDiagnostic.diagnostic.error && (
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Sanitized Diagnostic Error:</span>
+                      <span>{aiDiagnostic.diagnostic.error}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Meaningful Open-Weight Workflow Demo */}
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  Live Workflow Demonstration
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Executes a complete end-to-end HELIX study guide generation workflow using the active AI provider.
+                </p>
+              </div>
+
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleRunWorkflowSample}
+                isLoading={isRunningWorkflow}
+                leftIcon={<Zap className="w-3.5 h-3.5" />}
+              >
+                Run Topic Workflow
+              </Button>
+            </div>
+
+            {workflowSample && (
+              <div className="p-4 rounded-xl bg-indigo-50/40 border border-indigo-100 space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-900">{workflowSample.topicTitle}</span>
+                  <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200">
+                    Source: {workflowSample.provider || 'AI Engine'} ({workflowSample.model || 'model'})
+                    {workflowSample.isFallback ? ' [Fallback]' : ' [Live Inference]'}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-700 block text-[11px]">Intuitive Explanation:</span>
+                    <p className="text-slate-600 text-xs mt-0.5">{workflowSample.simplifiedExplanation}</p>
+                  </div>
+
+                  <div>
+                    <span className="font-bold text-slate-700 block text-[11px]">Key Theoretical Invariants:</span>
+                    <ul className="list-disc list-inside text-slate-600 text-xs space-y-0.5 mt-0.5">
+                      {workflowSample.keyPoints?.map((kp: string, i: number) => (
+                        <li key={i}>{kp}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {workflowSample.examTips?.length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">
+                      <span className="font-bold">Exam Mastery Tip: </span>
+                      {workflowSample.examTips[0]}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}

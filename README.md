@@ -10,6 +10,9 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Cloud%20Messaging-FFCA28.svg?style=flat&logo=firebase)](https://firebase.google.com/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-AI%20Engine-8E75B2.svg?style=flat&logo=google)](https://ai.google.dev/)
 [![Live Demo](https://img.shields.io/badge/Live-Demo-000000?style=flat&logo=vercel)](https://helix-kappa-liart.vercel.app/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20Open--Weight-000000.svg?style=flat&logo=ollama)](https://ollama.com/)
+[![Groq](https://img.shields.io/badge/Groq-LPU%20Inference-F55036.svg?style=flat)](https://groq.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 🌐 Live Demo
 
@@ -215,16 +218,80 @@ The deterministic packing algorithm operates on mathematical scheduling principl
 
 ---
 
-# 🤖 AI Layer
+# 🤖 AI Layer & Open-Weight Provider Architecture
 
-HELIX utilizes a dual-engine AI architecture:
+HELIX features a unified, server-side AI provider abstraction with configurable backends:
 
-- **Google Gemini 1.5 Flash**: Primary model for complex syllabus PDF comprehension, topic breakdown, and comprehensive MCQ generation.
-- **Groq Llama 3.3 70B / Mixtral**: High-speed fallback model for real-time conversational chat, quick replanning suggestions, and flashcard generation.
+```bash
+AI_PROVIDER=gemini | groq | ollama
+```
 
-### Safety & Grounding Controls:
-- Structured JSON Schema enforcement via prompt engineering.
-- Deterministic post-validation rejecting any schedule proposal that violates 24-hour time constraints or creates overlapping calendar bounds.
+All model requests are managed exclusively through the Express backend gateway (`server/ai/`), preventing API key leakage to browser bundles and ensuring strict output validation.
+
+### Supported Providers & Models:
+
+| Provider | Runtime Type | Default Model | Primary Responsibilities | Privacy & Cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **Ollama** | **Local Inference (Windows)** | [`qwen2.5-coder:3b`](https://huggingface.co/Qwen/Qwen2.5-Coder-3B) | Topic study guides, syllabus extraction, MCQs, replanning logic | **100% On-Device, Zero API Fees, Total Privacy** |
+| **Groq** | **Hosted LPU Cloud** | `openai/gpt-oss-120b` | High-speed open-weight cloud inference | Ultra-low latency, hosted rate limits |
+| **Google Gemini** | **Frontier Cloud API** | `gemini-1.5-flash` | Large syllabus PDF comprehension & multi-modal materials | Cloud inference, requires API key |
+
+---
+
+### 🌟 Open-Weight Model Showcase: Qwen 2.5 Coder 3B
+
+HELIX natively uses the open-weight model **Qwen 2.5 Coder 3B** (`qwen2.5-coder:3b`) running on a local Ollama daemon.
+
+- **Upstream Model Card**: [https://huggingface.co/Qwen/Qwen2.5-Coder-3B](https://huggingface.co/Qwen/Qwen2.5-Coder-3B)
+- **Model License**: [Apache 2.0 Permissive License](https://huggingface.co/Qwen/Qwen2.5-Coder-3B/blob/main/LICENSE)
+- **Parameter Size**: 3.1 Billion parameters (Q4_K_M 4-bit quantization, ~1.9 GB download)
+- **Architecture**: Dense Transformer with Grouped Query Attention (GQA), RoPE, 32k context length.
+
+#### **Real Application Workflows Powered by the Open-Weight Model:**
+1. **Syllabus PDF / Text Ingestion (`POST /api/ai/extract-syllabus`)**: Parses unstructured university curricula into structured subjects, units, topics, and study durations.
+2. **Topic Study Guides (`POST /api/ai/topic-content`)**: Formulates intuitive metaphors, in-depth theoretical breakdowns, worked examples, and semester exam tips.
+3. **Interactive Quizzes (`POST /api/ai/generate-quiz`)**: Formulates 4 realistic multiple-choice questions with answer keys and conceptual rationales.
+4. **Adaptive Replanning Explanation (`POST /api/planner/replan`)**: Formulates student-friendly explanations of why specific focus blocks were rebalanced when an urgent assignment was added.
+
+---
+
+### ⚖️ Local Inference vs. Hosted Inference
+
+| Dimension | Local Inference (Ollama) | Hosted Cloud Inference (Groq / Gemini) |
+| :--- | :--- | :--- |
+| **Data Privacy** | **Complete.** Zero student notes, syllabi, or schedules leave the local device. | Prompts are transmitted over HTTPS to cloud servers. |
+| **API Costs & Rate Limits** | **$0.00 forever.** No quota exhaustion or rate limits. | Bound by cloud subscription tiers and per-minute quotas. |
+| **Offline Capability** | Operates with zero internet connectivity. | Requires reliable high-speed internet. |
+| **Hardware Dependency** | Bound by local CPU/GPU/RAM. Cold-start load time ~10–25s. | Serverless cluster execution with instant warm response. |
+
+---
+
+### 💻 Hardware & Performance Considerations
+
+- **Minimum Hardware Requirements**:
+  - RAM: 8 GB system RAM (minimum 3 GB free for model weights).
+  - Storage: ~2.5 GB free disk space for the GGUF weights.
+  - OS: Windows 10/11 64-bit, macOS (Apple Silicon recommended), or Linux.
+- **Hardware Acceleration**:
+  - When an NVIDIA GPU with CUDA or Apple Silicon is detected, Ollama automatically offloads layers to VRAM for sub-second token generation.
+  - On CPU-only laptops, expect 15–35 tokens/second, which comfortably generates complete study guides in 5–12 seconds.
+- **Cold-Start Latency**:
+  - The first request after starting Ollama requires loading weights into RAM (~10-20s). Subsequent requests execute against warm memory in under 5 seconds.
+
+---
+
+### 🛡️ Safety & Architectural Invariants
+
+> **"AI proposes. Deterministic logic validates. The student decides."**
+
+HELIX enforces strict separation of concerns between generative AI and mathematical scheduling:
+1. **No Competing Schedulers**: The model is **never** the authority for:
+   - Available study hours calculation
+   - Time-slot overlap or collision detection
+   - Hard deadline enforcement
+   - Task completion history or streak counting
+2. **Deterministic Scheduler**: All calendar math is evaluated by `DeterministicPlanner` using mathematical ratios and capacity invariants.
+3. **Strict Schema Validation**: Model JSON outputs are stripped of markdown wrappers, extracted, and verified against TypeScript schemas (`server/ai/validator.ts`). If a model produces malformed JSON, a graceful fallback is provided with explicit `isFallback: true` labeling—failures never masquerade as successful AI generations.
 
 ---
 
@@ -353,42 +420,128 @@ PORT=5000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 SUPABASE_SECRET_KEY=your_supabase_secret_key
-GEMINI_API_KEY=your_gemini_api_key
+# Unified AI Provider Selection: ollama | groq | gemini
+AI_PROVIDER=ollama
+AI_TIMEOUT_MS=45000
+
+# 1. Local Open-Weight Inference (Ollama on Windows)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:3b
+
+# 2. Cloud Open-Weight Inference (Groq)
 GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=openai/gpt-oss-120b
+
+# 3. Frontier Cloud Multimodal (Google Gemini)
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+
+# YouTube Data API
 YOUTUBE_API_KEY=your_youtube_api_key
 ```
 
 ---
 
-# 🚀 Local Development
+# 🚀 Local Development & Ollama Setup Guide
 
-### 1. Clone the Repository
+Follow these steps to run HELIX with the open-weight model `qwen2.5-coder:3b` on Windows, macOS, or Linux.
+
+### 1. Install & Launch Ollama on Windows
+
+1. Download the Windows installer from [https://ollama.com/download/windows](https://ollama.com/download/windows).
+2. Run the installer (`OllamaSetup.exe`). Once installed, Ollama runs in the background and mounts its HTTP daemon at `http://localhost:11434`.
+3. Open PowerShell or Command Prompt and download the open-weight model:
+   ```powershell
+   ollama run qwen2.5-coder:3b
+   ```
+4. Verify that the model is loaded and available:
+   ```powershell
+   ollama list
+   # Output should display:
+   # NAME                ID              SIZE      MODIFIED
+   # qwen2.5-coder:3b    f72c60cabf62    1.9 GB    ...
+   ```
+5. You can test the HTTP daemon response directly:
+   ```powershell
+   curl.exe http://localhost:11434/api/tags
+   ```
+
+### 2. Clone the Repository & Install Dependencies
+
 ```bash
 git clone https://github.com/GovindaSaiKiran/helix.git
 cd helix
+pnpm install # or npm install
 ```
 
-### 2. Install Dependencies
+### 3. Configure Environment Variables
+
 ```bash
-npm install
+# 1. Copy backend environment
+cp server/.env.example server/.env
+
+# Ensure AI_PROVIDER is set to ollama:
+# AI_PROVIDER=ollama
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=qwen2.5-coder:3b
+
+# 2. Copy frontend environment
+cp .env.example .env.local
 ```
 
-### 3. Setup Environment Variables
-- Copy `.env.example` to `.env.local` and configure your credentials.
-- Copy `server/.env.example` to `server/.env` and configure your backend keys.
-
-### 4. Run Development Servers
-In two separate terminals:
+### 4. Run Automated Verification Tests
 
 ```bash
-# Terminal 1: Frontend Client (Vite)
-npm run dev
+pnpm test # or npm test
+```
+Runs the 17-test suite verifying:
+- Centralized provider selection (`gemini`, `groq`, `ollama`)
+- Missing key enforcement without secret leakage
+- Non-streaming Ollama chat protocol parsing and error handling
+- Ollama timeout and network failure resilience
+- Strict schema validation for syllabi, topics, and quizzes
+- Deterministic capacity balancing and replanning integrity
 
-# Terminal 2: Backend API Server (Express)
+### 5. Start HELIX Development Servers
+
+Open two terminal windows:
+
+```bash
+# Terminal 1: Express Backend Gateway (Port 5000)
 npm run server
+
+# Terminal 2: React 19 Frontend (Vite on Port 5173)
+npm run dev
 ```
 
-The application will be live at `http://localhost:5173`.
+Visit **`http://localhost:5173`** in your browser.
+
+---
+
+# 🧪 Demonstrating the Open-Weight Model in HELIX
+
+To experience and verify the open-weight model in action:
+
+1. **AI Diagnostic & Latency Probe**:
+   - Navigate to **Settings** (`/settings`) from the sidebar.
+   - Click the **AI & Models** tab.
+   - Observe the **Ollama (Local)** active badge showing `qwen2.5-coder:3b`.
+   - Click **"Probe Active"** or **"Test Ollama"**. The backend issues a live request to `http://localhost:11434/api/chat` and reports round-trip latency, connection status, and sample JSON output.
+
+2. **Live Topic Study Guide Generation**:
+   - In the **AI & Models** tab, click **"Run Topic Workflow"**.
+   - The local `qwen2.5-coder:3b` model receives the academic prompt, formulates an everyday analogy, decomposes core principles, and produces semester exam tips.
+   - Notice the source tag: `Source: ollama (qwen2.5-coder:3b) [Live Inference]`.
+
+3. **Autonomous Curriculum Ingestion & Quizzes**:
+   - Go to **Study Hub** (`/study`).
+   - Open any topic or syllabus unit to automatically generate structured topic guides or 4-option MCQs.
+   - All prompts are processed locally through the Express gateway with zero cloud tokens consumed.
+
+4. **Adaptive Replanning with Deterministic Guarantees**:
+   - Go to **Replanning View** (`/replan`).
+   - Click **"⚡ Simulate Urgent Task"**.
+   - The deterministic scheduler recalibrates the timetable without exceeding daily available hours, while the open-weight model generates the contextual explanation (`AI Rebalancing Logic`).
 
 ---
 
@@ -399,10 +552,10 @@ The application will be live at `http://localhost:5173`.
 2. Set build command to `npm run build` and output directory to `dist`.
 3. Add `VITE_*` environment variables in the Vercel project settings.
 
-### Backend (Render / Railway / Fly.io):
+### Backend (Render / Railway / Fly.io / Self-Hosted VPS):
 1. Deploy the `server/` directory as a Node.js service.
 2. Set start command to `npm run server`.
-3. Populate `server/.env` secrets in the provider's environment variables console.
+3. Populate `server/.env` secrets (e.g., set `AI_PROVIDER=groq` or `AI_PROVIDER=gemini` for cloud hosting, or point `OLLAMA_BASE_URL` to a self-hosted GPU endpoint).
 
 ---
 
@@ -504,7 +657,12 @@ HELIX was built to provide students with a comprehensive, stress-free academic p
 
 # 📜 License & Acknowledgments
 
-Created with passion for students worldwide. Built for the **Build to Ship** initiative.
+HELIX is open-source software licensed under the **[MIT License](LICENSE)**.
+
+### Model Weights & Third-Party Terms:
+- **Qwen 2.5 Coder 3B**: Open weights licensed under [Apache 2.0](https://huggingface.co/Qwen/Qwen2.5-Coder-3B) by Alibaba Cloud / Qwen Team.
+- **Groq LPU**: Governed by the Groq Cloud Terms of Service.
+- **Google Gemini**: Governed by Google Generative AI Developer Terms.
 
 - Developed by **[Govinda Sai Kiran](https://github.com/GovindaSaiKiran)**
 - Repository: [https://github.com/GovindaSaiKiran/helix](https://github.com/GovindaSaiKiran/helix)

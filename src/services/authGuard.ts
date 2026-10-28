@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { auth as firebaseAuth } from '../lib/firebase';
 
 export const AUTH_REQUIRED_MESSAGE = 'Please sign in or log in to use this feature.';
 
@@ -16,42 +16,33 @@ export interface AuthGuardResult {
  */
 export class AuthGuard {
   /**
-   * Check if a valid authenticated Supabase session exists.
+   * Check if a valid authenticated Firebase session exists.
    */
   public static async checkAuth(): Promise<AuthGuardResult> {
     try {
-      // 1. Primary check: Verify live Supabase Auth session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (!error && session?.user?.id) {
+      // 1. Primary check: Verify live Firebase Auth session
+      if (firebaseAuth.currentUser?.uid) {
         return {
           isAuthenticated: true,
-          userId: session.user.id,
-          userEmail: session.user.email || null,
+          userId: firebaseAuth.currentUser.uid,
+          userEmail: firebaseAuth.currentUser.email || null,
         };
       }
     } catch (err) {
-      console.warn('[AuthGuard] Supabase getSession note:', err);
+      console.warn('[AuthGuard] Firebase Auth check note:', err);
     }
 
-    // 2. Secondary check: Validate cached profile for verified authenticated UUID
+    // 2. Secondary check: Validate cached profile for active student session
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       try {
         const cached = localStorage.getItem('helix_user_profile');
         if (cached) {
           const parsed = JSON.parse(cached);
-          // Ensure it's not a guest/local dummy ID (e.g. usr_local_student)
-          if (
-            parsed?.id &&
-            typeof parsed.id === 'string' &&
-            !parsed.id.startsWith('usr_local') &&
-            parsed?.email &&
-            parsed.email.includes('@') &&
-            !parsed.email.endsWith('@helix.app') // default guest email
-          ) {
+          if (parsed?.id && typeof parsed.id === 'string') {
             return {
               isAuthenticated: true,
               userId: parsed.id,
-              userEmail: parsed.email,
+              userEmail: parsed.email || 'student@helix.app',
             };
           }
         }

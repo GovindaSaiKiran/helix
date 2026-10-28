@@ -167,6 +167,29 @@ export const ReplanningPage: React.FC = () => {
                     </div>
                   </div>
                 ))}
+
+                {activeProposal.aiExplanation && (
+                  <div className="p-3 rounded-lg border border-indigo-200 bg-white text-xs space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        AI Rebalancing Logic
+                      </span>
+                      {activeProposal.isAiExplained && (
+                        <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          AI Explained
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-slate-800 font-semibold">{activeProposal.aiExplanation.summary}</p>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">{activeProposal.aiExplanation.reasoning}</p>
+                    {activeProposal.aiExplanation.studyPacingTip && (
+                      <p className="text-indigo-800 text-[11px] pt-1 border-t border-slate-100 italic">
+                        💡 Pacing Tip: {activeProposal.aiExplanation.studyPacingTip}
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardBody>
             </Card>
 

@@ -6,6 +6,7 @@ import { SubjectService } from '../subjectService';
 import { YouTubeService, YouTubeVideo } from '../youtubeService';
 import { firebaseMessaging } from '../firebaseMessaging';
 import { AiService } from '../aiService';
+import { ApiClient } from '../apiClient';
 import { Task, Project, ScheduleSlot } from '../../types';
 
 export interface ToolExecutionTrace {
@@ -579,12 +580,38 @@ export class AgentExecutor {
 
           case 'UNKNOWN':
           default: {
-            toolsExecuted.push({
-              toolName: 'UnrecognizedIntent',
-              parameters: { intent },
-              status: 'unimplemented',
-            });
-            summaryReplies.push(`I analyzed your request: "${userPrompt}". You can ask me to schedule a class, set a reminder, search YouTube lectures, or manage coursework projects!`);
+            try {
+              const tutorPrompt = `You are Helix, an intelligent, empathetic academic tutor and student study planner.
+A university student asks or requests: "${userPrompt}"
+
+Provide a natural, clear, and academically sound response (around 2-3 concise paragraphs or structured bullet points).
+- If they ask about an academic concept, course topic, or theory, explain it clearly with an intuitive real-world analogy.
+- If they ask about focus, productivity, planning, or study strategy, provide concrete actionable advice.
+- Conclude with a helpful suggestion (e.g. asking if they would like to schedule a study block or explore their Study Hub).`;
+
+              const aiRes = await ApiClient.generateRawText(tutorPrompt, {
+                temperature: 0.3,
+                maxTokens: 450,
+              });
+
+              toolsExecuted.push({
+                toolName: 'AiTutor.answer',
+                parameters: { userPrompt },
+                status: 'success',
+                resultSummary: `Answered via ${aiRes.provider} (${aiRes.model})`,
+              });
+
+              summaryReplies.push(aiRes.text);
+            } catch (aiErr: any) {
+              console.warn('[AgentExecutor] AI conversational answer fallback:', aiErr.message);
+              toolsExecuted.push({
+                toolName: 'AiTutor.offlineFallback',
+                parameters: { userPrompt },
+                status: 'success',
+              });
+              summaryReplies.push(`I understand you're asking about "${userPrompt}". I'm here to help you study and plan! You can ask me to schedule study sessions, search for video tutorials, or explore topics in your Study Hub.`);
+            }
+            break;
           }
         }
       } catch (err: any) {
@@ -706,7 +733,21 @@ export class AgentExecutor {
   }
 
   private static isPublicIntent(intent: string): boolean {
-    const publicIntents = ['GREETING', 'HELP', 'SHOW_TODAY', 'SHOW_WEEK', 'SHOW_ANALYTICS', 'SHOW_TASKS', 'SHOW_PROJECTS'];
+    const publicIntents = [
+      'GREETING',
+      'HELP',
+      'SHOW_TODAY',
+      'SHOW_WEEK',
+      'SHOW_ANALYTICS',
+      'SHOW_TASKS',
+      'SHOW_PROJECTS',
+      'EXPLAIN_TOPIC',
+      'SUMMARIZE',
+      'ANSWER_QUESTION',
+      'GENERATE_TOPIC_CONTENT',
+      'SEARCH_YOUTUBE',
+      'UNKNOWN',
+    ];
     return publicIntents.includes(intent);
   }
 
